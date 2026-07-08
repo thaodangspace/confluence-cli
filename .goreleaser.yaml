@@ -1,0 +1,40 @@
+version: 2
+
+project_name: confluence-cli
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: confluence-cli
+    main: .
+    binary: confluence-cli
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/dtonair/confluence-cli/cmd.version=v{{ .Version }}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"

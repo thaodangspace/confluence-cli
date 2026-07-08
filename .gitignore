@@ -1,0 +1,3 @@
+/confluence-cli
+/dist/
+*.yaml.local
