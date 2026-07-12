@@ -344,6 +344,138 @@ func TestCommentEmptyBodyFails(t *testing.T) {
 	}
 }
 
+func TestPageMdConvertsView(t *testing.T) {
+	var gotURL string
+	out, err := run(t, func(r *http.Request) (*http.Response, error) {
+		gotURL = r.URL.String()
+		return jsonResp(200, `{"id":"55","title":"Runbook","status":"current","body":{"view":{"value":"<h1>Title</h1><p>hi</p>","representation":"view"}}}`), nil
+	}, "page", "md", "55")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(gotURL, "/pages/55") || !strings.Contains(gotURL, "body-format=view") {
+		t.Fatalf("unexpected url: %s", gotURL)
+	}
+	if out != "# Title\n\nhi\n" {
+		t.Fatalf("unexpected markdown: %q", out)
+	}
+}
+
+func TestPageMdInvalidID(t *testing.T) {
+	called := false
+	_, err := run(t, func(r *http.Request) (*http.Response, error) {
+		called = true
+		return jsonResp(200, `{}`), nil
+	}, "page", "md", "abc")
+	if err == nil {
+		t.Fatal("expected error for non-numeric id")
+	}
+	if called {
+		t.Fatal("should not call API for invalid id")
+	}
+}
+
+func TestPageMdEmptyBody(t *testing.T) {
+	out, err := run(t, func(r *http.Request) (*http.Response, error) {
+		return jsonResp(200, `{"id":"55","title":"Empty","status":"current","body":{"view":{"value":"","representation":"view"}}}`), nil
+	}, "page", "md", "55")
+	if err != nil {
+		t.Fatalf("empty body should not error: %v", err)
+	}
+	if out != "\n" {
+		t.Fatalf("expected just a newline for empty body, got %q", out)
+	}
+}
+
+func TestPageMdHTTPErrorFails(t *testing.T) {
+	_, err := run(t, func(r *http.Request) (*http.Response, error) {
+		return jsonResp(404, `{"errors":[{"title":"Not Found"}]}`), nil
+	}, "page", "md", "55")
+	if err == nil {
+		t.Fatal("expected error on 404")
+	}
+}
+
+func TestPageMdFrontmatter(t *testing.T) {
+	var urls []string
+	out, err := run(t, func(r *http.Request) (*http.Response, error) {
+		urls = append(urls, r.URL.String())
+		if strings.Contains(r.URL.Path, "/spaces/777") {
+			return jsonResp(200, `{"id":"777","key":"ENG","name":"Engineering"}`), nil
+		}
+		return jsonResp(200, `{"id":"55","title":"Deploy: staging #2","status":"current","spaceId":"777","version":{"number":3},"_links":{"base":"https://acme.atlassian.net/wiki","webui":"/spaces/ENG/pages/55"},"body":{"view":{"value":"<p>body</p>","representation":"view"}}}`), nil
+	}, "page", "md", "55", "--frontmatter")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(urls) != 2 {
+		t.Fatalf("expected page GET + space lookup (2 calls), got %d: %v", len(urls), urls)
+	}
+	for _, want := range []string{
+		"---\n", "title: 'Deploy: staging #2'", "id: \"55\"", "space: ENG",
+		"spaceId: \"777\"", "status: current", "version: 3",
+		"url: https://acme.atlassian.net/wiki/spaces/ENG/pages/55",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("frontmatter missing %q in:\n%s", want, out)
+		}
+	}
+	if !strings.Contains(out, "\n---\n\nbody\n") {
+		t.Fatalf("body not after frontmatter:\n%s", out)
+	}
+}
+
+func TestPageMdFrontmatterSpaceLookupDegrades(t *testing.T) {
+	out, err := run(t, func(r *http.Request) (*http.Response, error) {
+		if strings.Contains(r.URL.Path, "/spaces/777") {
+			return jsonResp(404, `{"errors":[{"title":"Not Found"}]}`), nil
+		}
+		return jsonResp(200, `{"id":"55","title":"T","status":"current","spaceId":"777","version":{"number":1},"body":{"view":{"value":"<p>x</p>","representation":"view"}}}`), nil
+	}, "page", "md", "55", "--frontmatter")
+	if err != nil {
+		t.Fatalf("space lookup failure must not fail the command: %v", err)
+	}
+	if !strings.Contains(out, "spaceId: \"777\"") {
+		t.Fatalf("spaceId should still be present: %s", out)
+	}
+	if strings.Contains(out, "\nspace: ") {
+		t.Fatalf("space key should be omitted when lookup fails: %s", out)
+	}
+}
+
+func TestPageMdOutputFile(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/page.md"
+	out, err := run(t, func(r *http.Request) (*http.Response, error) {
+		return jsonResp(200, `{"id":"55","title":"T","status":"current","body":{"view":{"value":"<h1>Doc</h1>","representation":"view"}}}`), nil
+	}, "page", "md", "55", "-o", path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out != "" {
+		t.Fatalf("expected no stdout when writing to file, got %q", out)
+	}
+	b, rerr := os.ReadFile(path)
+	if rerr != nil {
+		t.Fatalf("output file not written: %v", rerr)
+	}
+	if string(b) != "# Doc\n" {
+		t.Fatalf("unexpected file contents: %q", string(b))
+	}
+}
+
+func TestPageMdOutputDashIsStdout(t *testing.T) {
+	out, err := run(t, func(r *http.Request) (*http.Response, error) {
+		return jsonResp(200, `{"id":"55","title":"T","status":"current","body":{"view":{"value":"<h1>Doc</h1>","representation":"view"}}}`), nil
+	}, "page", "md", "55", "-o", "-")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out != "# Doc\n" {
+		t.Fatalf("expected stdout for -o -, got %q", out)
+	}
+}
+
 func TestConfigListRedactsToken(t *testing.T) {
 	cfgPath := t.TempDir() + "/confluence-cli.yaml"
 	if err := config.SetFileValue(cfgPath, "api_token", "super-secret"); err != nil {
