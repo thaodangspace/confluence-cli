@@ -10,9 +10,10 @@ conventions so any agent/script can drive Confluence.
 | Path | Responsibility |
 | --- | --- |
 | `main.go` | Entry point → `cmd.Execute()` |
-| `cmd/` | Cobra commands. One file per area: `space.go`, `page.go` (read), `page_write.go` + `comment.go` (write), `attachment.go`, `status.go`, `config.go`, `root.go`. `common.go` holds shared helpers. |
+| `cmd/` | Cobra commands. One file per area: `space.go`, `page.go` (read), `page_md.go` (Markdown export), `page_write.go` + `comment.go` (write), `attachment.go`, `status.go`, `config.go`, `root.go`. `common.go` holds shared helpers. |
 | `confluence/client.go` | Thin REST v2 client: Basic auth, JSON `Request`, `Paginate`, normalized `HTTPError`. |
 | `config/config.go` | Config resolution: env → YAML file. Site normalization; **no git auto-detect**. |
+| `markdown/` | Pure-Go HTML→Markdown core (`FromHTML`, `Render`) wrapping `html-to-markdown` v1.6.0 + GFM plugin. Network-free; unit-tested independently. |
 | `output/` | `RenderJSON`/`RenderLines`/`WriteError` and `*Summary` text formatters. |
 
 ## Conventions
@@ -34,7 +35,16 @@ conventions so any agent/script can drive Confluence.
 - **Body input** (`cmd/page_write.go`): `readBody(text, file, stdin)` resolves a
   body from `--body` / `--body-file` (`-` = stdin); the two sources are mutually
   exclusive. Reuse it for any future text-body flag. Bodies are passed through
-  **verbatim** — no markdown conversion.
+  **verbatim** — no markdown conversion on *write*.
+- **Markdown export** (`cmd/page_md.go` + `markdown/`): `page md <id>` is the one
+  command that emits **raw Markdown** to stdout, not the JSON envelope (`--pretty`
+  ignored; errors still use the envelope). It fetches `body-format=view` and calls
+  `markdown.FromHTML`. `--frontmatter` builds a metadata map and calls
+  `markdown.Render`; the human space **key** is a best-effort `GET /spaces/{id}` that
+  degrades to `spaceId`-only on error (a cosmetic field must never fail the command).
+  Conversion is **view-only** by design; `storage`/ADF sources are a deliberate
+  follow-up. Adds the `html-to-markdown` dep (pinned v1.6.0 — light tree, go 1.13
+  compat; v2 would force a go 1.25 toolchain bump).
 
 ## Site & base URL (differs from bitbucket-cli)
 

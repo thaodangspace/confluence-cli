@@ -35,7 +35,9 @@ go build -o confluence-cli .      # local binary
 go install .                      # into $GOBIN
 ```
 
-The only third-party dependencies are `spf13/cobra` and `gopkg.in/yaml.v3`.
+Third-party dependencies are kept minimal: `spf13/cobra` and `gopkg.in/yaml.v3`,
+plus `JohannesKaufmann/html-to-markdown` (pinned to v1.6.0 for its light, Go
+1.13-compatible dependency tree) for the `page md` HTML→Markdown conversion.
 
 ## Configuration
 
@@ -97,6 +99,7 @@ site. Recommended scopes: `read:page:confluence`, `read:space:confluence`,
 | `space get <id\|key>` | One space (resolves a key to its id) |
 | `page list [--space <key\|id>] [--title <t>] [--status current\|draft\|archived] [--limit N]` | List pages (scoped to a space when one is set) |
 | `page get <id> [--body-format storage\|atlas_doc_format\|view]` | One page |
+| `page md <id> [--frontmatter] [-o\|--output <file>]` | Export a page as GitHub-Flavored Markdown (converts the rendered `view` body) |
 | `page comments <id> [--limit N]` | Footer comments on a page |
 | `attachment list <page-id> [--limit N]` | Attachments on a page |
 | `page create --title <t> [--space <key\|id>] [--parent <id>] [--body ...\|--body-file ...] [--body-format ...]` | Create a page (write) |
@@ -112,6 +115,10 @@ Global flags: `--space`, `--pretty`. Default `--limit` is 20.
 confluence-cli space list --type global
 confluence-cli page list --space ENG --title "Runbook"
 confluence-cli page get 12345 --body-format storage | jq -r '.body.storage.value'
+
+# Export a page to Markdown (converts the rendered view body — no pandoc needed)
+confluence-cli page md 12345 > runbook.md
+confluence-cli page md 12345 --frontmatter -o runbook.md   # with YAML metadata header
 
 # Human-readable
 confluence-cli page list --space ENG --pretty
@@ -138,11 +145,18 @@ confluence-cli --space DOCS page list
 ## Body formats (important)
 
 Page and comment bodies are sent **verbatim** in the chosen representation — the
-CLI does **not** convert markdown. Supply valid content for the format:
+CLI does **not** convert markdown *on write*. Supply valid content for the format:
 
 - `storage` (default) — Confluence storage format (XHTML).
 - `atlas_doc_format` — Atlassian Document Format (ADF JSON).
 - `view` — read-only, valid for `page get` only (rejected on create/update).
+
+The reverse direction — Confluence → Markdown — is available via `page md`, which
+fetches the rendered `view` body and converts it to GitHub-Flavored Markdown in pure
+Go (no `pandoc` required). Note this is the one command that prints **raw Markdown**
+to stdout rather than the JSON envelope (`--pretty` is ignored); errors still use the
+JSON error envelope. Conversion is view-only for now — `storage`/`atlas_doc_format`
+sources and image/attachment downloading are out of scope.
 
 ## Output contract
 
