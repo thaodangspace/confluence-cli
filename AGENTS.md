@@ -15,6 +15,7 @@ conventions so any agent/script can drive Confluence.
 | `config/config.go` | Config resolution: env → YAML file. Site normalization; **no git auto-detect**. |
 | `markdown/` | Pure-Go HTML→Markdown core (`FromHTML`, `Render`) wrapping `html-to-markdown` v1.6.0 + GFM plugin. Network-free; unit-tested independently. |
 | `output/` | `RenderJSON`/`RenderLines`/`WriteError` and `*Summary` text formatters. |
+| `docs/` | Astro/Starlight static documentation site. |
 
 ## Conventions
 
@@ -111,3 +112,7 @@ specific upstream extension. Intentional divergences:
 
 `go build -o confluence-cli .` or `go install .`. Deps: `spf13/cobra`,
 `gopkg.in/yaml.v3` only. Release via goreleaser (`.goreleaser.yaml`).
+
+The docs site uses npm from `docs/` and emits static output to `docs/dist/`:
+`make docs-build`. Cloudflare Pages uses root `docs`, build command
+`npm run build`, and output `dist`.

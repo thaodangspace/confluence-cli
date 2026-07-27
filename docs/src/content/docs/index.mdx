@@ -1,0 +1,38 @@
+---
+title: confluence-cli
+description: Drive Confluence Cloud from the command line with a JSON-first CLI.
+template: splash
+hero:
+  tagline: Spaces, pages, comments, and Markdown export from the shell.
+  actions:
+    - text: Get started
+      link: /getting-started/
+      icon: right-arrow
+    - text: Browse commands
+      link: /commands/
+      icon: open-book
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+`confluence-cli` is a standalone Go CLI for Confluence Cloud's REST v2 API. It
+works without a bespoke integration and keeps automation predictable: JSON is the
+default, `--pretty` provides one-line summaries, and errors are structured on
+stderr.
+
+<CardGrid stagger>
+  <Card title="Configure a site" icon="setting">
+    Connect to an explicit Confluence site with environment variables or a private YAML config file.
+  </Card>
+  <Card title="Read and export" icon="magnifier">
+    List spaces and pages, inspect comments and attachments, and export rendered pages to GitHub-Flavored Markdown.
+  </Card>
+  <Card title="Write deliberately" icon="rocket">
+    Create pages, update pages with safe version increments, and post footer comments only when explicitly requested.
+  </Card>
+</CardGrid>
+
+:::caution[Confluence credentials required]
+API operations require an Atlassian API token, email address, and explicit site
+with access to the target content. Keep credentials out of source control.
+:::
